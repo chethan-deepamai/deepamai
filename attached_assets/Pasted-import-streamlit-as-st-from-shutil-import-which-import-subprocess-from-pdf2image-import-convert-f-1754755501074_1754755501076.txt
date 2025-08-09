@@ -1,0 +1,59 @@
+import streamlit as st
+from shutil import which
+import subprocess
+from pdf2image import convert_from_bytes
+import pytesseract
+import os
+import traceback
+
+def check_tesseract_installation(lang_code='kan'):
+    try:
+        tesseract_cmd = which('tesseract')
+        if not tesseract_cmd:
+            st.error("Tesseract not installed or not in PATH.")
+            return False
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        langs = subprocess.check_output([tesseract_cmd, '--list-langs']).decode()
+        if lang_code not in langs.lower():
+            st.error(f"{lang_code.upper()} language data not found in Tesseract.")
+            return False
+        return True
+    except Exception as e:
+        st.error(f"Error checking Tesseract: {str(e)}")
+        return False
+
+def find_poppler_path():
+    possible_paths = [
+        r"A:\Downloads\Release-24.08.0-0\poppler-24.08.0\Library\bin",
+        r"C:\Program Files\poppler-24.08.0\Library\bin",
+        r"C:\Program Files\poppler\bin",
+        os.path.join(os.getenv('PROGRAMFILES', ''), 'poppler-24.08.0', 'Library', 'bin')
+    ]
+    for path in possible_paths:
+        if os.path.exists(os.path.join(path, 'pdftoppm.exe')):
+            return path
+    return None
+
+def extract_text_with_ocr(pdf_bytes, lang_props, page_num=None, dpi=300):
+    if not check_tesseract_installation(lang_props["ocr"]):
+        return "", "Failed: Tesseract not configured"
+    poppler_path = find_poppler_path()
+    if not poppler_path:
+        st.error("Poppler not found. Install and add to PATH.")
+        return "", "Failed: Poppler not found"
+    try:
+        images = convert_from_bytes(pdf_bytes, dpi=dpi, poppler_path=poppler_path)
+        if page_num is not None:
+            if 0 <= page_num < len(images):
+                text = pytesseract.image_to_string(images[page_num], lang=lang_props["ocr"], config='--psm 6')
+                return text, f"OCR Page {page_num + 1}"
+            else:
+                return "", "Failed: Invalid page"
+        ocr_text = []
+        for img in images:
+            text = pytesseract.image_to_string(img, lang=lang_props["ocr"], config='--psm 6')
+            ocr_text.append(text)
+        return "\n".join(ocr_text), "OCR (All Pages)"
+    except Exception as e:
+        st.error(f"OCR failed: {str(e)}\n{traceback.format_exc()}")
+        return "", "Failed"

@@ -1,0 +1,81 @@
+import streamlit as st
+import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def chunk_text(text, chunk_size=256, overlap=20):
+    chunks = []
+    start = 0
+    text_len = len(text)
+    while start < text_len:
+        end = min(start + chunk_size, text_len)
+        chunk = text[start:end].strip()
+        if chunk:  # Only add non-empty chunks
+            chunks.append(chunk)
+        start = end - overlap
+    return chunks
+
+def encode_batch(model, batch, batch_idx):
+    """Encode a single batch of text chunks into embeddings"""
+    try:
+        embeddings = model.encode(batch, show_progress_bar=False)
+        return batch_idx, embeddings
+    except Exception as e:
+        st.error(f"Error encoding batch {batch_idx}: {str(e)}")
+        return batch_idx, None
+
+def generate_embeddings_multithreaded(model, chunks, batch_size=32, max_workers=4, progress_callback=None):
+    """
+    Generate embeddings for text chunks using multithreading for faster processing
+    
+    Args:
+        model: SentenceTransformer model
+        chunks: List of text chunks
+        batch_size: Size of each batch
+        max_workers: Maximum number of threads
+        progress_callback: Optional callback function to update progress
+    
+    Returns:
+        numpy array of embeddings
+    """
+    # Create batches
+    batches = []
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i:i + batch_size]
+        batches.append((i // batch_size, batch))
+    
+    # Initialize results array
+    all_embeddings = [None] * len(batches)
+    completed_batches = 0
+    
+    # Use ThreadPoolExecutor for parallel processing
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all batch encoding tasks
+        future_to_batch = {
+            executor.submit(encode_batch, model, batch, batch_idx): batch_idx 
+            for batch_idx, batch in batches
+        }
+        
+        # Collect results as they complete
+        for future in as_completed(future_to_batch):
+            batch_idx = future_to_batch[future]
+            try:
+                result_idx, embeddings = future.result()
+                if embeddings is not None:
+                    all_embeddings[result_idx] = embeddings
+                    completed_batches += 1
+                    
+                    # Update progress if callback provided
+                    if progress_callback:
+                        progress = completed_batches / len(batches)
+                        progress_callback(progress, completed_batches, len(batches))
+                        
+            except Exception as e:
+                st.error(f"Error processing batch {batch_idx}: {str(e)}")
+    
+    # Flatten the results
+    final_embeddings = []
+    for batch_embeddings in all_embeddings:
+        if batch_embeddings is not None:
+            final_embeddings.extend(batch_embeddings)
+    
+    return np.array(final_embeddings).astype('float32')
