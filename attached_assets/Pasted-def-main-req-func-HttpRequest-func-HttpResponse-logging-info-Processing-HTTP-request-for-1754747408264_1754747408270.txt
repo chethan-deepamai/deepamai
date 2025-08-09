@@ -1,0 +1,437 @@
+def main(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Processing HTTP request for blob processing.')
+
+    try:
+        request_data = req.get_json()
+       
+        required_env_vars = [
+                                "CLIENT_ID", "CLIENT_SECRET","TENANT_ID", "VAULT_URL", "ADLS_ACCOUNT_CONNSTR_SECRET"
+                            ]
+        missing_env_vars = [var for var in required_env_vars if not os.environ.get(var)]
+       
+        if missing_env_vars:
+            logging.error(f"Missing environment variables: {', '.join(missing_env_vars)}")
+            return func.HttpResponse("Bad Request - Missing environment variables", status_code=500)
+
+        # Extract required fields
+        required_fields = [
+            'BASE_URL', 'CONTAINER_NAME', 'BLOB_NAME',
+            'INDEX_NAME', 'CHATBOT_NAME', 'FILE_PATH', 'AZURE_OPENAI_SECRET',
+            'AZURE_OPENAI_ENDPOINT', 'EMBEDDING_MODEL_NAME', 'TEXT_ANALYTICS_ENDPOINT',
+            'TEXT_ANALYTICS_SECRET', 'SEARCH_SERVICE_NAME', 'SEARCH_SERVICE_SECRET'
+        ]
+       
+        # Check for missing required fields
+        missing_or_empty_fields = [field for field in required_fields if not request_data.get(field) or not request_data[field].strip()]
+        if missing_or_empty_fields:
+            logging.error(f"Missing required fields: {', '.join(missing_or_empty_fields)}")
+            return func.HttpResponse("Bad Request - Missing required fields", status_code=500)
+       
+        # Unpack request data
+        base_url = request_data['BASE_URL']
+        container_name = request_data['CONTAINER_NAME']
+        blob_name = request_data['BLOB_NAME']
+        index_name = request_data['INDEX_NAME']
+        chatbot_name = request_data['CHATBOT_NAME']
+        file_path = request_data['FILE_PATH']
+        azure_openai_endpoint = request_data['AZURE_OPENAI_ENDPOINT']
+        openai_secret = request_data['AZURE_OPENAI_SECRET']
+        embedding_model_name = request_data['EMBEDDING_MODEL_NAME']
+        text_analytics_endpoint = request_data['TEXT_ANALYTICS_ENDPOINT']
+        text_analytics_secret = request_data['TEXT_ANALYTICS_SECRET']
+        search_service_name = request_data['SEARCH_SERVICE_NAME']
+        search_service_secret = request_data['SEARCH_SERVICE_SECRET']
+
+        # Initialize Azure credentials
+        credential = ClientSecretCredential(TENANT_ID, CLIENT_ID, CLIENT_SECRET)
+        secret_client = SecretClient(vault_url=VAULT_URL, credential=credential)
+
+        # Retrieve secrets from Key Vault
+        adls_connection_string = secret_client.get_secret(ADLS_ACCOUNT_CONNSTR_SECRET).value
+        azure_openai_key = secret_client.get_secret(openai_secret).value
+        text_analytics_key = secret_client.get_secret(text_analytics_secret).value
+        search_service_key = secret_client.get_secret(search_service_secret).value
+
+        # Initialize the BlobServiceClient
+        blob_service_client = BlobServiceClient.from_connection_string(adls_connection_string)
+        container_client = blob_service_client.get_container_client(container_name)
+
+        # Process blob
+        blob_content = read_blob(container_client, file_path, blob_name)
+        logging.info(f"Processing blob: {blob_name}")
+
+        # Extract text from the file
+        text = extract_text_from_file(blob_name, blob_content)
+        if not text:
+            error_msg = f"No text extracted for blob: {blob_name}"
+            logging.error(error_msg)
+            return func.HttpResponse(error_msg, status_code=400)
+
+        # Split the text into chunks
+        text_chunks = split_text(text)
+        logging.info(f"Text splitting done for: {blob_name}")
+
+        full_url = f"{base_url}{index_name}/{file_path}{blob_name}"
+        parent_id = generate_parent_id(full_url)
+
+        # Process chunks using ThreadPoolExecutor
+        all_embeddings, all_key_phrases = process_chunks_in_parallel(
+            text_chunks, azure_openai_key, azure_openai_endpoint, embedding_model_name,
+            text_analytics_endpoint, text_analytics_key
+        )
+
+        # Validate the results
+        if len(all_embeddings) != len(text_chunks) or len(all_key_phrases) != len(text_chunks):
+            error_msg = "Mismatch between text chunks, embeddings, and key phrases."
+            logging.error(error_msg)
+            return func.HttpResponse(error_msg, status_code=500)
+
+        # Detect language once
+        lang_code = detect_language_once(text)
+
+        # Prepare data for Azure Cognitive Search
+        data_to_ais = prepare_data_for_indexing(
+            text_chunks, all_embeddings, all_key_phrases, blob_name, lang_code, chatbot_name, parent_id
+        )
+
+        # Upload data to Azure Cognitive Search
+        upload_data_to_index(
+            search_service_name, search_service_key, index_name, data_to_ais,
+            azure_openai_endpoint, embedding_model_name, azure_openai_key
+        )
+        logging.info(f"Uploading done for blob: {blob_name}")
+
+        # Successful response
+        return func.HttpResponse(
+            "This HTTP triggered function executed successfully.",
+            status_code=200
+        )
+
+    except Exception as e:
+        logging.error(f"Failed to process blob '{blob_name}' with error: {e}")
+        return func.HttpResponse(
+            f"Error processing blob '{blob_name}': {str(e)}",
+            status_code=500
+        )
+
+############################################################################################################################
+#                              HELPER FUNCTIONS
+############################################################################################################################
+
+def read_blob(container_client, file_path, blob_name):
+    """Read the blob content into a stream."""
+    try:
+        # Ensure the file path is correctly formed
+        if file_path and not file_path.endswith('/'):
+            file_path += '/'
+        elif not file_path:
+            file_path = ''
+        blob_path = file_path + blob_name
+
+        # Get the blob client
+        blob_client = container_client.get_blob_client(blob_path)
+
+        # Download the blob content as bytes
+        blob_content = blob_client.download_blob().readall()
+
+        # Create a BytesIO stream from the blob content
+        stream = BytesIO(blob_content)
+
+        return stream
+    except Exception as e:
+        logging.error(f"Error reading blob '{blob_name}': {e}")
+        raise
+
+
+def generate_parent_id(full_url):
+    """Generate a parent ID by encoding the URL."""
+    encoded_url = base64.urlsafe_b64encode(full_url.encode()).decode()
+    padding_count = encoded_url.count('=')
+    encoded_url = encoded_url.rstrip('=')
+    encoded_url += str(padding_count)
+    return encoded_url
+
+def extract_text_from_file(file_name, file_stream):
+    """Extract text from different file types."""
+    ext = os.path.splitext(file_name)[1].lower()
+    if ext == '.txt':
+        return extract_text_from_txt(file_stream)
+    elif ext == '.docx':
+        return extract_text_from_docx_blob(file_stream)
+    elif ext == '.pptx' :
+        return extract_text_from_pptx_blob(file_stream)
+    else:
+        error_msg = f"Unsupported file type: {ext}"
+        logging.error(error_msg)
+        raise ValueError(error_msg)
+
+def extract_text_from_pptx_blob(blob_content):
+    """Extract text from a PPTX file."""
+    try:
+        blob_content.seek(0)
+        presentation = Presentation(blob_content)
+        text_content = []
+        for slide in presentation.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    text_content.append(shape.text)
+        return "\n".join(text_content)
+    except Exception as e:
+        logging.error(f"Error extracting text from PPTX: {e}")
+        return ""
+
+def extract_text_from_docx_blob(blob_content):
+    """Extract text from a DOCX file using mammoth."""
+    try:
+        blob_content.seek(0)
+        result = mammoth.extract_raw_text(blob_content)
+        text = result.value  # The extracted text
+        return text
+    except Exception as e:
+        logging.error(f"Error extracting text from DOCX using mammoth: {e}")
+        return ""
+   
+def extract_text_from_txt(file_stream):
+    """Extract text from a TXT file."""
+    try:
+        file_stream.seek(0)
+        return file_stream.read().decode('utf-8')
+    except Exception as e:
+        logging.error(f"Error extracting text from TXT: {e}")
+        return ""
+
+def split_text(text, chunk_size=4096, overlap=100):
+    """Split text into chunks with overlap."""
+    chunks = []
+    start = 0
+    text_length = len(text)
+    while start < text_length:
+        end = min(start + chunk_size, text_length)
+        chunk = text[start:end]
+        chunks.append(chunk)
+        start += chunk_size - overlap
+    return chunks
+
+def process_chunks_in_parallel(
+    text_chunks, azure_openai_key, azure_openai_endpoint, embedding_model_name,
+    text_analytics_endpoint, text_analytics_key
+):
+    """Process text chunks to get embeddings and key phrases in parallel."""
+    all_embeddings = []
+    all_key_phrases = []
+    batch_size = 10
+
+    with ThreadPoolExecutor() as executor:
+        for i in range(0, len(text_chunks), batch_size):
+            batch = text_chunks[i:i + batch_size]
+            embeddings_future = executor.submit(
+                text_to_embeddings, batch, azure_openai_key, azure_openai_endpoint, embedding_model_name
+            )
+            key_phrases_future = executor.submit(
+                extract_key_phrases_list, batch, text_analytics_endpoint, text_analytics_key
+            )
+            embeddings = embeddings_future.result()
+            key_phrases = key_phrases_future.result()
+            all_embeddings.extend(embeddings)
+            all_key_phrases.extend(key_phrases)
+    return all_embeddings, all_key_phrases
+
+def text_to_embeddings(text_chunks, azure_openai_key, azure_openai_endpoint, embedding_model_name):
+    """Convert text chunks to embeddings using Azure OpenAI."""
+    embeddings = []
+    api_version = "2022-12-01"
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": azure_openai_key
+    }
+    endpoint = f"{azure_openai_endpoint}/openai/deployments/{embedding_model_name}/embeddings?api-version={api_version}"
+    try:
+        response = requests.post(endpoint, headers=headers, json={"input": text_chunks})
+        response.raise_for_status()
+        response_data = response.json()
+        for item in response_data["data"]:
+            embeddings.append(item["embedding"])
+    except Exception as e:
+        logging.error(f"Error in text to embeddings: {e}")
+        raise
+    return embeddings
+
+def extract_key_phrases_list(text_chunks, text_analytics_endpoint, text_analytics_key):
+    """Extract key phrases from text chunks."""
+    key_phrases_list = []
+    ta_client = create_ta_client(text_analytics_endpoint, text_analytics_key)
+    documents = [{"id": str(i), "language": "en", "text": chunk} for i, chunk in enumerate(text_chunks)]
+
+    try:
+        responses = ta_client.extract_key_phrases(documents=documents)
+        for i, response in enumerate(responses):
+            if not response.is_error:
+                key_phrases_list.append(response.key_phrases if response.key_phrases else [])
+            else:
+                logging.error(f"Error in key phrase extraction for chunk {i}: {response.error}")
+                key_phrases_list.append([])
+    except Exception as err:
+        logging.error(f"Exception during key phrase extraction: {err}")
+        key_phrases_list = [[] for _ in text_chunks]
+    return key_phrases_list
+
+def detect_language_once(text):
+    """Detect language for the entire text."""
+    lang_code = langid.classify(text)[0]
+    lang_name = langcodes.Language.get(lang_code).display_name()
+    return lang_name
+
+def create_ta_client(text_analytics_endpoint, text_analytics_key):
+    """Create a Text Analytics client."""
+    ta_credential = AzureKeyCredential(text_analytics_key)
+    return TextAnalyticsClient(endpoint=text_analytics_endpoint, credential=ta_credential)
+
+def prepare_data_for_indexing(text_chunks, embeddings, key_phrases_list, title, lang_code, chatbot_name, parent_id):
+    """Prepare data for uploading to Azure Cognitive Search."""
+    data = []
+    for i, (chunk, embedding, key_phrases) in enumerate(zip(text_chunks, embeddings, key_phrases_list)):
+        data.append({
+            "chunk_id": f"{parent_id}_{i}",
+            "chunk": chunk,
+            "parent_id": parent_id,
+            "vector": embedding,
+            "title": title,
+            "keyPhrases": json.dumps(key_phrases),
+            "languageName": lang_code,
+            "bot_name": chatbot_name
+        })
+    return data
+
+def upload_data_to_index(
+    service_name, search_service_key, index_name, data,
+    azure_openai_endpoint, embedding_model_name, azure_openai_key
+):
+    """Upload data to Azure Cognitive Search index."""
+    endpoint = f"https://{service_name}.search.windows.net"
+
+    # Create a SearchIndexClient to manage indexes
+    index_client = SearchIndexClient(
+        endpoint=endpoint,
+        credential=AzureKeyCredential(search_service_key)
+    )
+
+    # Ensure the index exists
+    try:
+        index_client.get_index(index_name)
+        logging.info(f"Index '{index_name}' already exists.")
+    except ResourceNotFoundError:
+        create_index(
+            index_client, index_name, azure_openai_endpoint,
+            embedding_model_name, azure_openai_key
+        )
+        logging.info(f"Index '{index_name}' created.")
+
+    # Upload documents
+    search_client = SearchClient(
+        endpoint=endpoint,
+        index_name=index_name,
+        credential=AzureKeyCredential(search_service_key)
+    )
+    try:
+        results = search_client.upload_documents(documents=data)
+        logging.info(f"Documents uploaded: {results}")
+    except Exception as e:
+        logging.error(f"Error uploading documents to index '{index_name}': {e}")
+        raise
+
+def create_index(index_client, index_name, azure_openai_endpoint,embedding_model_name, azure_openai_key):
+    """Create an Azure Cognitive Search index."""
+
+    # Check if the index with the same name already exists
+    try:
+        existing_index = index_client.get_index(index_name)
+    except Exception:
+        logging.info(f"Index '{index_name}' does not exist. Proceeding with creation.")
+        existing_index = None
+       
+     # If the index exists, return without creating a new one
+    if existing_index:
+        logging.info(f"Index '{index_name}' already exists. No action required.")
+        return
+    else:
+        fields = [
+                SearchField(name="chunk_id", type=SearchFieldDataType.String, key=True),
+                SearchField(name="parent_id", type=SearchFieldDataType.String),
+                SearchField(name="title", type=SearchFieldDataType.String),
+                SearchField(name="chunk", type=SearchFieldDataType.String),
+                SearchField(name="keyPhrases", type=SearchFieldDataType.String),
+                SearchField(name="languageName", type=SearchFieldDataType.String),
+                SearchField(
+                    name="vector",
+                    type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                    vector_search_dimensions=1536,
+                    vector_search_profile="myHnswProfile"
+                ),
+                SearchField(name="bot_name", type=SearchFieldDataType.String)
+            ]
+
+        vector_search = VectorSearch(
+                algorithms=[
+                    HnswVectorSearchAlgorithmConfiguration(
+                        name="myHnsw",
+                        kind=VectorSearchAlgorithmKind.HNSW,
+                        parameters=HnswParameters(
+                            m=4,
+                            ef_construction=400,
+                            ef_search=500,
+                            metric=VectorSearchAlgorithmMetric.COSINE,
+                        ),
+                    ),
+                    ExhaustiveKnnVectorSearchAlgorithmConfiguration(
+                        name="myExhaustiveKnn",
+                        kind=VectorSearchAlgorithmKind.EXHAUSTIVE_KNN,
+                        parameters=ExhaustiveKnnParameters(
+                            metric=VectorSearchAlgorithmMetric.COSINE,
+                        ),
+                    ),
+                ],
+                profiles=[
+                    VectorSearchProfile(
+                        name="myHnswProfile",
+                        algorithm="myHnsw",
+                        vectorizer="myOpenAI",
+                    ),
+                    VectorSearchProfile(
+                        name="myExhaustiveKnnProfile",
+                        algorithm="myExhaustiveKnn",
+                        vectorizer="myOpenAI",
+                    )
+                ],
+                vectorizers=[
+                    AzureOpenAIVectorizer(
+                        name="myOpenAI",
+                        kind="azureOpenAI",
+                        azure_open_ai_parameters=AzureOpenAIParameters(
+                            resource_uri=azure_openai_endpoint,
+                            deployment_id=embedding_model_name,
+                            api_key=azure_openai_key
+                        ),
+                    ),
+                ],
+            )
+
+        semantic_config = SemanticConfiguration(
+                name="my-semantic-config",
+                prioritized_fields=PrioritizedFields(
+                    prioritized_content_fields=[SemanticField(field_name="chunk")]
+                ),
+            )
+
+        index = SearchIndex(
+                name=index_name,
+                fields=fields,
+                vector_search=vector_search,
+                semantic_settings=SemanticSettings(configurations=[semantic_config])
+            )
+
+        try:
+                index_client.create_or_update_index(index)
+                logging.info(f"Index '{index_name}' created or updated successfully.")
+        except Exception as e:
+                logging.error(f"Error creating index '{index_name}': {e}")
+                raise

@@ -1,0 +1,1513 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Platform - RAG & Configuration Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1976D2',
+                        secondary: '#424242',
+                        success: '#4CAF50',
+                        warning: '#FF9800',
+                        error: '#F44336',
+                        surface: '#FFFFFF'
+                    },
+                    fontFamily: {
+                        'sans': ['Roboto', 'sans-serif'],
+                        'mono': ['Roboto Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- @COMPONENT: AppLayout [Main application layout with sidebar and content] -->
+    <div class="flex h-screen bg-gray-50">
+        <!-- Sidebar Navigation -->
+        <div class="w-64 bg-white shadow-lg border-r border-gray-200 flex flex-col">
+            <!-- Logo and Title -->
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                        <i class="fas fa-robot text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-semibold text-gray-900">AI Chat Platform</h1>
+                        <p class="text-xs text-gray-500">RAG Configuration</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Menu -->
+            <nav class="flex-1 p-4 space-y-2">
+                <div class="space-y-1">
+                    <button class="w-full flex items-center space-x-3 px-3 py-2 text-sm font-medium text-primary bg-blue-50 rounded-md" data-tab="chat">
+                        <i class="fas fa-comments"></i>
+                        <span>Chat Interface</span>
+                    </button>
+                    <button class="w-full flex items-center space-x-3 px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md" data-tab="config">
+                        <i class="fas fa-cog"></i>
+                        <span>Configuration</span>
+                    </button>
+                    <button class="w-full flex items-center space-x-3 px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md" data-tab="documents">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Document Manager</span>
+                    </button>
+                    <button class="w-full flex items-center space-x-3 px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md" data-tab="file-viewer">
+                        <i class="fas fa-eye"></i>
+                        <span>File Viewer</span>
+                    </button>
+                    <button class="w-full flex items-center space-x-3 px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md" data-tab="history">
+                        <i class="fas fa-history"></i>
+                        <span>Chat History</span>
+                    </button>
+                </div>
+            </nav>
+
+            <!-- Provider Status Panel -->
+            <div class="p-4 border-t border-gray-200">
+                <h3 class="text-sm font-medium text-gray-900 mb-3">System Status</h3>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-600">LLM Provider</span>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <i class="fas fa-circle text-success mr-1" style="font-size: 6px;"></i>
+                            OpenAI Active
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-600">Vector DB</span>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <i class="fas fa-circle text-success mr-1" style="font-size: 6px;"></i>
+                            FAISS Ready
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-600">Embeddings</span>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <i class="fas fa-circle text-warning mr-1" style="font-size: 6px;"></i>
+                            Indexing...
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col">
+            <!-- Header Bar -->
+            <header class="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <h2 class="text-xl font-semibold text-gray-900" id="page-title">Chat Interface</h2>
+                        <!-- @STATE: currentTab:string = 'chat' -->
+                        <div class="flex items-center space-x-2">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                <i class="fas fa-database mr-1"></i>
+                                <span data-bind="documentCount">247 docs</span>
+                            </span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <i class="fas fa-check-circle mr-1"></i>
+                                RAG Enabled
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button class="p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 rounded-md" title="Settings">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <button class="p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 rounded-md" title="Help">
+                            <i class="fas fa-question-circle"></i>
+                        </button>
+                        <div class="h-8 w-px bg-gray-300"></div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                                <i class="fas fa-user text-sm text-gray-600"></i>
+                            </div>
+                            <span class="text-sm text-gray-700" data-bind="user.name">Admin User</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Chat Interface Tab -->
+            <div id="chat-tab" class="flex-1 flex flex-col">
+                <div class="flex-1 flex">
+                    <!-- Chat Messages Area -->
+                    <div class="flex-1 flex flex-col">
+                        <!-- Messages Container -->
+                        <div class="flex-1 overflow-y-auto p-6 space-y-4">
+                            <!-- @MAP: messages.map(message => ( -->
+                            <!-- System Message -->
+                            <div class="flex justify-center">
+                                <div class="max-w-md text-center">
+                                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                        <p class="text-sm text-blue-800">
+                                            <i class="fas fa-info-circle mr-2"></i>
+                                            RAG system initialized with 247 documents. Ask me anything!
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- User Message -->
+                            <div class="flex justify-end">
+                                <div class="max-w-3xl">
+                                    <div class="bg-primary text-white rounded-lg px-4 py-3">
+                                        <p class="text-sm">What are the key benefits of using vector databases for RAG applications?</p>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-1 text-right">2:34 PM</p>
+                                </div>
+                            </div>
+
+                            <!-- Assistant Message with Citations -->
+                            <div class="flex justify-start">
+                                <div class="max-w-4xl">
+                                    <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                        <div class="prose prose-sm max-w-none">
+                                            <p class="text-gray-800 mb-3">Vector databases offer several key benefits for RAG applications:</p>
+                                            <ol class="text-gray-800 space-y-2">
+                                                <li><strong>Semantic Search:</strong> Vector databases enable semantic similarity search rather than just keyword matching, allowing for more contextually relevant document retrieval.</li>
+                                                <li><strong>Scalability:</strong> They can efficiently handle millions of high-dimensional vectors with fast query performance.</li>
+                                                <li><strong>Real-time Updates:</strong> Support for dynamic insertion and updates of vector embeddings without full reindexing.</li>
+                                            </ol>
+                                        </div>
+                                        
+                                        <!-- Citations -->
+                                        <div class="mt-4 pt-3 border-t border-gray-100">
+                                            <h4 class="text-xs font-medium text-gray-500 mb-2">Sources:</h4>
+                                            <div class="flex flex-wrap gap-2">
+                                                <button class="inline-flex items-center px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs text-gray-600" data-mock="true">
+                                                    <i class="fas fa-file-pdf mr-1"></i>
+                                                    Vector_DB_Guide.pdf
+                                                </button>
+                                                <button class="inline-flex items-center px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs text-gray-600" data-mock="true">
+                                                    <i class="fas fa-file-alt mr-1"></i>
+                                                    RAG_Best_Practices.md
+                                                </button>
+                                                <button class="inline-flex items-center px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs text-gray-600" data-mock="true">
+                                                    <i class="fas fa-globe mr-1"></i>
+                                                    enterprise-ai-docs.html
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-1">2:34 PM • Generated in 2.3s</p>
+                                </div>
+                            </div>
+                            <!-- @END_MAP )) -->
+                        </div>
+
+                        <!-- Chat Input Area -->
+                        <div class="border-t border-gray-200 p-6">
+                            <div class="flex space-x-4">
+                                <div class="flex-1">
+                                    <div class="relative">
+                                        <textarea
+                                            class="w-full border border-gray-300 rounded-lg px-4 py-3 pr-12 resize-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                            rows="3"
+                                            placeholder="Ask a question about your documents..."
+                                            data-mock="true"
+                                        ></textarea>
+                                        <button 
+                                            class="absolute bottom-3 right-3 p-2 bg-primary text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                                            data-event="click:handleSendMessage"
+                                        >
+                                            <i class="fas fa-paper-plane"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center justify-between mt-2">
+                                        <div class="flex items-center space-x-4 text-xs text-gray-500">
+                                            <span><i class="fas fa-database mr-1"></i>Vector search enabled</span>
+                                            <span><i class="fas fa-history mr-1"></i>Context: Last 5 messages</span>
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                            <kbd class="px-2 py-1 bg-gray-100 rounded text-xs">Shift + Enter</kbd> to send
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Panel - Context & Settings -->
+                    <div class="w-80 bg-white border-l border-gray-200 p-6">
+                        <div class="space-y-6">
+                            <!-- Current Session Info -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-900 mb-3">Current Session</h3>
+                                <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                                    <div class="flex justify-between text-sm">
+                                        <span class="text-gray-600">Model:</span>
+                                        <span class="font-medium" data-bind="currentModel">gpt-4-turbo</span>
+                                    </div>
+                                    <div class="flex justify-between text-sm">
+                                        <span class="text-gray-600">Temperature:</span>
+                                        <span class="font-medium" data-bind="temperature">0.7</span>
+                                    </div>
+                                    <div class="flex justify-between text-sm">
+                                        <span class="text-gray-600">Max Tokens:</span>
+                                        <span class="font-medium" data-bind="maxTokens">2048</span>
+                                    </div>
+                                    <div class="flex justify-between text-sm">
+                                        <span class="text-gray-600">Vector DB:</span>
+                                        <span class="font-medium" data-bind="vectorDb">FAISS</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recent Context -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-900 mb-3">Retrieved Context</h3>
+                                <div class="space-y-2">
+                                    <div class="bg-green-50 border border-green-200 rounded p-2">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-xs font-medium text-green-800">High Relevance</span>
+                                            <span class="text-xs text-green-600">0.94</span>
+                                        </div>
+                                        <p class="text-xs text-green-700" data-mock="true">Vector databases enable semantic similarity search...</p>
+                                        <p class="text-xs text-green-600 mt-1">Vector_DB_Guide.pdf</p>
+                                    </div>
+                                    <div class="bg-blue-50 border border-blue-200 rounded p-2">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-xs font-medium text-blue-800">Medium Relevance</span>
+                                            <span class="text-xs text-blue-600">0.87</span>
+                                        </div>
+                                        <p class="text-xs text-blue-700" data-mock="true">RAG applications benefit from real-time indexing...</p>
+                                        <p class="text-xs text-blue-600 mt-1">RAG_Best_Practices.md</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quick Actions -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-900 mb-3">Quick Actions</h3>
+                                <div class="space-y-2">
+                                    <button class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded border border-gray-200" data-event="click:clearChat">
+                                        <i class="fas fa-trash-alt mr-2"></i>Clear Chat
+                                    </button>
+                                    <button class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded border border-gray-200" data-event="click:exportChat">
+                                        <i class="fas fa-download mr-2"></i>Export Chat
+                                    </button>
+                                    <button class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded border border-gray-200" data-event="click:regenerateResponse">
+                                        <i class="fas fa-redo mr-2"></i>Regenerate Last
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration Tab -->
+            <div id="config-tab" class="flex-1 hidden">
+                <div class="p-6">
+                    <!-- Configuration Tabs -->
+                    <div class="mb-6">
+                        <div class="border-b border-gray-200">
+                            <nav class="-mb-px flex space-x-8">
+                                <button class="py-2 px-1 border-b-2 border-primary text-primary font-medium text-sm" data-config-tab="llm">
+                                    LLM Providers
+                                </button>
+                                <button class="py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-config-tab="vector">
+                                    Vector Databases
+                                </button>
+                                <button class="py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-config-tab="embedding">
+                                    Embedding Models
+                                </button>
+                                <button class="py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-config-tab="storage">
+                                    Storage Backend
+                                </button>
+                            </nav>
+                        </div>
+                    </div>
+
+                    <!-- LLM Provider Configuration -->
+                    <div id="llm-config" class="space-y-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- OpenAI Configuration -->
+                            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                                            <i class="fas fa-robot text-white text-sm"></i>
+                                        </div>
+                                        <h3 class="text-lg font-medium text-gray-900">OpenAI</h3>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            <i class="fas fa-circle text-success mr-1" style="font-size: 6px;"></i>
+                                            Active
+                                        </span>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer" checked data-mock="true">
+                                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                                        <input type="password" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" placeholder="sk-..." data-mock="true">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                                        <select class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                            <option>gpt-4-turbo</option>
+                                            <option>gpt-4</option>
+                                            <option>gpt-3.5-turbo</option>
+                                        </select>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Temperature</label>
+                                            <input type="number" step="0.1" min="0" max="2" value="0.7" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Max Tokens</label>
+                                            <input type="number" value="2048" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 pt-4 border-t border-gray-100">
+                                    <button class="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-4 rounded-md text-sm font-medium" data-event="click:testConnection">
+                                        <i class="fas fa-plug mr-2"></i>Test Connection
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Azure OpenAI Configuration -->
+                            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                            <i class="fab fa-microsoft text-white text-sm"></i>
+                                        </div>
+                                        <h3 class="text-lg font-medium text-gray-900">Azure OpenAI</h3>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            <i class="fas fa-circle text-gray-400 mr-1" style="font-size: 6px;"></i>
+                                            Inactive
+                                        </span>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer" data-mock="true">
+                                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Endpoint</label>
+                                        <input type="url" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" placeholder="https://your-resource.openai.azure.com/" data-mock="true">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                                        <input type="password" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" placeholder="Your Azure OpenAI key" data-mock="true">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Deployment Name</label>
+                                        <input type="text" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" placeholder="gpt-4-deployment" data-mock="true">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">API Version</label>
+                                        <select class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                            <option>2024-02-15-preview</option>
+                                            <option>2023-12-01-preview</option>
+                                            <option>2023-10-01-preview</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mt-4 pt-4 border-t border-gray-100">
+                                    <button class="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-4 rounded-md text-sm font-medium" data-event="click:testConnection">
+                                        <i class="fas fa-plug mr-2"></i>Test Connection
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Anthropic Configuration -->
+                            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                                            <i class="fas fa-brain text-white text-sm"></i>
+                                        </div>
+                                        <h3 class="text-lg font-medium text-gray-900">Anthropic Claude</h3>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            <i class="fas fa-circle text-gray-400 mr-1" style="font-size: 6px;"></i>
+                                            Inactive
+                                        </span>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer" data-mock="true">
+                                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                                        <input type="password" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" placeholder="sk-ant-..." data-mock="true">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                                        <select class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                            <option>claude-3-opus-20240229</option>
+                                            <option>claude-3-sonnet-20240229</option>
+                                            <option>claude-3-haiku-20240307</option>
+                                        </select>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Temperature</label>
+                                            <input type="number" step="0.1" min="0" max="1" value="0.7" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Max Tokens</label>
+                                            <input type="number" value="4096" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 pt-4 border-t border-gray-100">
+                                    <button class="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-4 rounded-md text-sm font-medium" data-event="click:testConnection">
+                                        <i class="fas fa-plug mr-2"></i>Test Connection
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Local Model Configuration -->
+                            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                                            <i class="fas fa-server text-white text-sm"></i>
+                                        </div>
+                                        <h3 class="text-lg font-medium text-gray-900">Local/Ollama</h3>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            <i class="fas fa-circle text-gray-400 mr-1" style="font-size: 6px;"></i>
+                                            Inactive
+                                        </span>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer" data-mock="true">
+                                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
+                                        <input type="url" value="http://localhost:11434" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                                        <select class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                            <option>llama2:7b</option>
+                                            <option>llama2:13b</option>
+                                            <option>mistral:7b</option>
+                                            <option>codellama:7b</option>
+                                        </select>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Temperature</label>
+                                            <input type="number" step="0.1" min="0" max="2" value="0.8" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Context Length</label>
+                                            <input type="number" value="4096" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 pt-4 border-t border-gray-100">
+                                    <button class="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-4 rounded-md text-sm font-medium" data-event="click:testConnection">
+                                        <i class="fas fa-plug mr-2"></i>Test Connection
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Vector Database Configuration Section -->
+                        <div class="mt-12">
+                            <h2 class="text-xl font-semibold text-gray-900 mb-6">Vector Database Configuration</h2>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <!-- FAISS Configuration -->
+                                <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
+                                                <i class="fas fa-database text-white text-sm"></i>
+                                            </div>
+                                            <h3 class="text-lg font-medium text-gray-900">FAISS</h3>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                <i class="fas fa-circle text-success mr-1" style="font-size: 6px;"></i>
+                                                Active
+                                            </span>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" class="sr-only peer" checked data-mock="true">
+                                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Index Path</label>
+                                            <input type="text" value="./data/faiss_index" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Index Type</label>
+                                            <select class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                                <option>IndexFlatIP</option>
+                                                <option>IndexHNSWFlat</option>
+                                                <option>IndexIVFFlat</option>
+                                            </select>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-1">Dimension</label>
+                                                <input type="number" value="1536" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-1">Top K</label>
+                                                <input type="number" value="5" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pinecone Configuration -->
+                                <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
+                                                <i class="fas fa-cloud text-white text-sm"></i>
+                                            </div>
+                                            <h3 class="text-lg font-medium text-gray-900">Pinecone</h3>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                <i class="fas fa-circle text-gray-400 mr-1" style="font-size: 6px;"></i>
+                                                Inactive
+                                            </span>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" class="sr-only peer" data-mock="true">
+                                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                                            <input type="password" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" placeholder="Your Pinecone API key" data-mock="true">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Environment</label>
+                                            <input type="text" placeholder="us-west1-gcp" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Index Name</label>
+                                            <input type="text" placeholder="my-index" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-1">Dimension</label>
+                                                <input type="number" value="1536" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-1">Top K</label>
+                                                <input type="number" value="5" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Manager Tab -->
+            <div id="documents-tab" class="flex-1 hidden">
+                <div class="p-6">
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-xl font-semibold text-gray-900">Document Manager</h2>
+                                <p class="text-sm text-gray-600 mt-1">Upload and manage documents for RAG processing</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button class="bg-primary text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700" data-event="click:bulkUpload">
+                                    <i class="fas fa-upload mr-2"></i>Bulk Upload
+                                </button>
+                                <button class="border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50" data-event="click:reindexAll">
+                                    <i class="fas fa-sync-alt mr-2"></i>Reindex All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Upload Area -->
+                        <div class="lg:col-span-2">
+                            <!-- @FUNCTIONALITY: This upload area should support drag and drop file uploads with progress tracking -->
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-gray-400 transition-colors">
+                                <div class="mx-auto max-w-md">
+                                    <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                                    <h3 class="text-lg font-medium text-gray-900 mb-2">Upload Documents</h3>
+                                    <p class="text-sm text-gray-600 mb-4">Drag and drop files here, or click to browse</p>
+                                    <input type="file" multiple class="hidden" id="file-upload" data-mock="true" data-implementation="Implement file upload with drag-and-drop support">
+                                    <button class="bg-primary text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-blue-700" onclick="document.getElementById('file-upload').click()">
+                                        Choose Files
+                                    </button>
+                                    <p class="text-xs text-gray-500 mt-3">Supports: PDF, DOCX, TXT, MD, HTML (Max 50MB per file)</p>
+                                </div>
+                            </div>
+
+                            <!-- Processing Queue -->
+                            <div class="mt-6">
+                                <h3 class="text-lg font-medium text-gray-900 mb-4">Processing Queue</h3>
+                                <div class="space-y-3">
+                                    <!-- @MAP: processingFiles.map(file => ( -->
+                                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                                    <i class="fas fa-file-pdf text-blue-600"></i>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-gray-900" data-mock="true">enterprise_rag_guide.pdf</p>
+                                                    <p class="text-xs text-gray-500">2.3 MB • Processing embeddings...</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center space-x-3">
+                                                <div class="flex items-center space-x-2">
+                                                    <div class="w-24 bg-gray-200 rounded-full h-2">
+                                                        <div class="bg-primary h-2 rounded-full" style="width: 65%"></div>
+                                                    </div>
+                                                    <span class="text-xs text-gray-600">65%</span>
+                                                </div>
+                                                <button class="text-gray-400 hover:text-red-600" data-event="click:cancelProcessing">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                                    <i class="fas fa-file-alt text-green-600"></i>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-gray-900" data-mock="true">vector_database_comparison.md</p>
+                                                    <p class="text-xs text-gray-500">1.8 MB • Chunking content...</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center space-x-3">
+                                                <div class="flex items-center space-x-2">
+                                                    <div class="w-24 bg-gray-200 rounded-full h-2">
+                                                        <div class="bg-primary h-2 rounded-full" style="width: 35%"></div>
+                                                    </div>
+                                                    <span class="text-xs text-gray-600">35%</span>
+                                                </div>
+                                                <button class="text-gray-400 hover:text-red-600" data-event="click:cancelProcessing">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- @END_MAP )) -->
+                                </div>
+                            </div>
+
+                            <!-- Document Library -->
+                            <div class="mt-8">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-lg font-medium text-gray-900">Document Library</h3>
+                                    <div class="flex items-center space-x-3">
+                                        <div class="relative">
+                                            <input type="text" placeholder="Search documents..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm" data-mock="true">
+                                            <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
+                                        </div>
+                                        <select class="border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                            <option>All Types</option>
+                                            <option>PDF</option>
+                                            <option>Markdown</option>
+                                            <option>Word</option>
+                                            <option>Text</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chunks</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="bg-white divide-y divide-gray-200">
+                                                <!-- @MAP: documents.map(doc => ( -->
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="flex items-center">
+                                                            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                                                                <i class="fas fa-file-pdf text-red-600 text-sm"></i>
+                                                            </div>
+                                                            <div>
+                                                                <p class="text-sm font-medium text-gray-900" data-mock="true">RAG_Implementation_Guide.pdf</p>
+                                                                <p class="text-xs text-gray-500">Uploaded 2 hours ago</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">4.2 MB</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">47</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                            <i class="fas fa-check-circle mr-1"></i>
+                                                            Indexed
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <div class="flex items-center space-x-2">
+                                                            <button class="text-primary hover:text-blue-700" data-event="click:viewDocument" title="View">
+                                                                <i class="fas fa-eye"></i>
+                                                            </button>
+                                                            <button class="text-gray-400 hover:text-gray-600" data-event="click:reindexDocument" title="Reindex">
+                                                                <i class="fas fa-sync-alt"></i>
+                                                            </button>
+                                                            <button class="text-gray-400 hover:text-red-600" data-event="click:deleteDocument" title="Delete">
+                                                                <i class="fas fa-trash-alt"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="flex items-center">
+                                                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                                                <i class="fas fa-file-alt text-blue-600 text-sm"></i>
+                                                            </div>
+                                                            <div>
+                                                                <p class="text-sm font-medium text-gray-900" data-mock="true">Vector_Databases_Comparison.md</p>
+                                                                <p class="text-xs text-gray-500">Uploaded 1 day ago</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">1.8 MB</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">32</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                            <i class="fas fa-check-circle mr-1"></i>
+                                                            Indexed
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <div class="flex items-center space-x-2">
+                                                            <button class="text-primary hover:text-blue-700" data-event="click:viewDocument" title="View">
+                                                                <i class="fas fa-eye"></i>
+                                                            </button>
+                                                            <button class="text-gray-400 hover:text-gray-600" data-event="click:reindexDocument" title="Reindex">
+                                                                <i class="fas fa-sync-alt"></i>
+                                                            </button>
+                                                            <button class="text-gray-400 hover:text-red-600" data-event="click:deleteDocument" title="Delete">
+                                                                <i class="fas fa-trash-alt"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="flex items-center">
+                                                            <div class="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mr-3">
+                                                                <i class="fas fa-exclamation-triangle text-orange-600 text-sm"></i>
+                                                            </div>
+                                                            <div>
+                                                                <p class="text-sm font-medium text-gray-900" data-mock="true">Enterprise_AI_Strategy.docx</p>
+                                                                <p class="text-xs text-gray-500">Uploaded 3 days ago</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">3.1 MB</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                            <i class="fas fa-exclamation-circle mr-1"></i>
+                                                            Error
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <div class="flex items-center space-x-2">
+                                                            <button class="text-primary hover:text-blue-700" data-event="click:retryIndexing" title="Retry">
+                                                                <i class="fas fa-redo"></i>
+                                                            </button>
+                                                            <button class="text-gray-400 hover:text-gray-600" data-event="click:viewErrors" title="View Errors">
+                                                                <i class="fas fa-exclamation-triangle"></i>
+                                                            </button>
+                                                            <button class="text-gray-400 hover:text-red-600" data-event="click:deleteDocument" title="Delete">
+                                                                <i class="fas fa-trash-alt"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <!-- @END_MAP )) -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Statistics Panel -->
+                        <div class="space-y-6">
+                            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                <h3 class="text-lg font-medium text-gray-900 mb-4">Storage Statistics</h3>
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-gray-600">Total Documents</span>
+                                        <span class="text-sm font-medium" data-bind="stats.totalDocs">247</span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-gray-600">Total Chunks</span>
+                                        <span class="text-sm font-medium" data-bind="stats.totalChunks">3,847</span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-gray-600">Storage Used</span>
+                                        <span class="text-sm font-medium" data-bind="stats.storageUsed">1.2 GB</span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-gray-600">Index Size</span>
+                                        <span class="text-sm font-medium" data-bind="stats.indexSize">342 MB</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 pt-4 border-t border-gray-100">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-sm text-gray-600">Processing Queue</span>
+                                        <span class="text-sm font-medium" data-bind="stats.queueSize">2</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-primary h-2 rounded-full" style="width: 45%"></div>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-1">45% complete</p>
+                                </div>
+                            </div>
+
+                            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                <h3 class="text-lg font-medium text-gray-900 mb-4">Processing Settings</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Chunk Size</label>
+                                        <input type="number" value="512" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Chunk Overlap</label>
+                                        <input type="number" value="50" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" checked class="mr-2" data-mock="true">
+                                        <label class="text-sm text-gray-700">Auto-reindex on update</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="mr-2" data-mock="true">
+                                        <label class="text-sm text-gray-700">Extract metadata</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                <h3 class="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
+                                <div class="space-y-2">
+                                    <button class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded border border-gray-200" data-event="click:clearIndex">
+                                        <i class="fas fa-trash-alt mr-2"></i>Clear Index
+                                    </button>
+                                    <button class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded border border-gray-200" data-event="click:exportIndex">
+                                        <i class="fas fa-download mr-2"></i>Export Index
+                                    </button>
+                                    <button class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded border border-gray-200" data-event="click:optimizeIndex">
+                                        <i class="fas fa-cogs mr-2"></i>Optimize Index
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Viewer Tab -->
+            <div id="file-viewer-tab" class="flex-1 hidden">
+                <div class="p-6">
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-xl font-semibold text-gray-900">File Viewer</h2>
+                                <p class="text-sm text-gray-600 mt-1">Browse and view embedded documents with chunk visualization</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <div class="relative">
+                                    <input type="text" placeholder="Search content..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm w-64" data-mock="true">
+                                    <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
+                                </div>
+                                <select class="border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                    <option>All Documents</option>
+                                    <option>Recently Viewed</option>
+                                    <option>Most Referenced</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex h-full">
+                        <!-- Document List -->
+                        <div class="w-80 bg-white border border-gray-200 rounded-lg mr-6 overflow-hidden">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="font-medium text-gray-900">Documents</h3>
+                            </div>
+                            <div class="overflow-y-auto h-full">
+                                <!-- @MAP: documents.map(doc => ( -->
+                                <div class="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" data-event="click:selectDocument">
+                                    <div class="flex items-start space-x-3">
+                                        <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <i class="fas fa-file-pdf text-red-600 text-sm"></i>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" data-mock="true">RAG_Implementation_Guide.pdf</p>
+                                            <p class="text-xs text-gray-500 mt-1">47 chunks • 4.2 MB</p>
+                                            <p class="text-xs text-gray-400 mt-1">Last accessed 2 hours ago</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer bg-blue-50 border-l-4 border-l-primary" data-event="click:selectDocument">
+                                    <div class="flex items-start space-x-3">
+                                        <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <i class="fas fa-file-alt text-blue-600 text-sm"></i>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" data-mock="true">Vector_Databases_Comparison.md</p>
+                                            <p class="text-xs text-gray-500 mt-1">32 chunks • 1.8 MB</p>
+                                            <p class="text-xs text-gray-400 mt-1">Currently viewing</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" data-event="click:selectDocument">
+                                    <div class="flex items-start space-x-3">
+                                        <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <i class="fas fa-file-code text-green-600 text-sm"></i>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" data-mock="true">openai_integration_examples.py</p>
+                                            <p class="text-xs text-gray-500 mt-1">15 chunks • 892 KB</p>
+                                            <p class="text-xs text-gray-400 mt-1">Last accessed yesterday</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" data-event="click:selectDocument">
+                                    <div class="flex items-start space-x-3">
+                                        <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <i class="fas fa-globe text-purple-600 text-sm"></i>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" data-mock="true">enterprise_ai_documentation.html</p>
+                                            <p class="text-xs text-gray-500 mt-1">28 chunks • 2.1 MB</p>
+                                            <p class="text-xs text-gray-400 mt-1">Last accessed 2 days ago</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- @END_MAP )) -->
+                            </div>
+                        </div>
+
+                        <!-- Content Viewer -->
+                        <div class="flex-1 bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <!-- Document Header -->
+                            <div class="p-4 border-b border-gray-200">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                            <i class="fas fa-file-alt text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="font-medium text-gray-900" data-bind="selectedDoc.name">Vector_Databases_Comparison.md</h3>
+                                            <p class="text-xs text-gray-500">32 chunks • Last modified 1 day ago</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded" title="Download">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                        <button class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded" title="Share">
+                                            <i class="fas fa-share-alt"></i>
+                                        </button>
+                                        <div class="h-4 w-px bg-gray-300"></div>
+                                        <span class="text-xs text-gray-500">View:</span>
+                                        <button class="px-2 py-1 bg-primary text-white rounded text-xs" data-view="chunks">Chunks</button>
+                                        <button class="px-2 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded text-xs" data-view="raw">Raw</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Chunk View -->
+                            <div class="h-full overflow-y-auto p-6 space-y-4">
+                                <!-- @MAP: documentChunks.map(chunk => ( -->
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div class="bg-gray-50 px-4 py-2 flex items-center justify-between">
+                                        <div class="flex items-center space-x-3">
+                                            <span class="text-sm font-medium text-gray-700">Chunk #1</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                512 tokens
+                                            </span>
+                                            <span class="text-xs text-gray-500">Similarity: 0.94</span>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <button class="text-xs text-primary hover:text-blue-700" data-event="click:copyChunk">
+                                                <i class="fas fa-copy mr-1"></i>Copy
+                                            </button>
+                                            <button class="text-xs text-gray-500 hover:text-gray-700" data-event="click:editChunk">
+                                                <i class="fas fa-edit mr-1"></i>Edit
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="p-4">
+                                        <div class="prose prose-sm max-w-none" data-mock="true">
+                                            <h3>Vector Database Comparison Overview</h3>
+                                            <p>Vector databases have emerged as a critical component in modern AI applications, particularly for Retrieval Augmented Generation (RAG) systems. This comparison evaluates several leading vector database solutions including FAISS, Pinecone, Weaviate, and Chroma.</p>
+                                            <p>Key evaluation criteria include:</p>
+                                            <ul>
+                                                <li>Performance and scalability</li>
+                                                <li>Ease of integration</li>
+                                                <li>Cost considerations</li>
+                                                <li>Feature completeness</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div class="bg-gray-50 px-4 py-2 flex items-center justify-between">
+                                        <div class="flex items-center space-x-3">
+                                            <span class="text-sm font-medium text-gray-700">Chunk #2</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                487 tokens
+                                            </span>
+                                            <span class="text-xs text-gray-500">Similarity: 0.89</span>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <button class="text-xs text-primary hover:text-blue-700" data-event="click:copyChunk">
+                                                <i class="fas fa-copy mr-1"></i>Copy
+                                            </button>
+                                            <button class="text-xs text-gray-500 hover:text-gray-700" data-event="click:editChunk">
+                                                <i class="fas fa-edit mr-1"></i>Edit
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="p-4">
+                                        <div class="prose prose-sm max-w-none" data-mock="true">
+                                            <h3>FAISS (Facebook AI Similarity Search)</h3>
+                                            <p>FAISS is Meta's open-source library for efficient similarity search and clustering of dense vectors. It provides both CPU and GPU implementations with excellent performance characteristics.</p>
+                                            <p><strong>Pros:</strong></p>
+                                            <ul>
+                                                <li>Excellent performance, especially on GPU</li>
+                                                <li>No external dependencies for basic usage</li>
+                                                <li>Extensive documentation and community support</li>
+                                                <li>Multiple index types for different use cases</li>
+                                            </ul>
+                                            <p><strong>Cons:</strong></p>
+                                            <ul>
+                                                <li>Requires more manual setup and maintenance</li>
+                                                <li>No built-in persistence layer</li>
+                                                <li>Limited metadata filtering capabilities</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div class="bg-gray-50 px-4 py-2 flex items-center justify-between">
+                                        <div class="flex items-center space-x-3">
+                                            <span class="text-sm font-medium text-gray-700">Chunk #3</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                521 tokens
+                                            </span>
+                                            <span class="text-xs text-gray-500">Similarity: 0.87</span>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <button class="text-xs text-primary hover:text-blue-700" data-event="click:copyChunk">
+                                                <i class="fas fa-copy mr-1"></i>Copy
+                                            </button>
+                                            <button class="text-xs text-gray-500 hover:text-gray-700" data-event="click:editChunk">
+                                                <i class="fas fa-edit mr-1"></i>Edit
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="p-4">
+                                        <div class="prose prose-sm max-w-none" data-mock="true">
+                                            <h3>Pinecone</h3>
+                                            <p>Pinecone is a fully managed vector database service that provides high-performance vector search with minimal operational overhead.</p>
+                                            <p><strong>Pros:</strong></p>
+                                            <ul>
+                                                <li>Fully managed service - no infrastructure management</li>
+                                                <li>Excellent API design and documentation</li>
+                                                <li>Built-in metadata filtering</li>
+                                                <li>Real-time updates and deletes</li>
+                                                <li>Multiple deployment regions</li>
+                                            </ul>
+                                            <p><strong>Cons:</strong></p>
+                                            <ul>
+                                                <li>Cost can be high for large datasets</li>
+                                                <li>Vendor lock-in concerns</li>
+                                                <li>Limited customization options</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- @END_MAP )) -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat History Tab -->
+            <div id="history-tab" class="flex-1 hidden">
+                <div class="p-6">
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-xl font-semibold text-gray-900">Chat History</h2>
+                                <p class="text-sm text-gray-600 mt-1">Browse and manage conversation history</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <div class="relative">
+                                    <input type="text" placeholder="Search conversations..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm w-64" data-mock="true">
+                                    <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
+                                </div>
+                                <select class="border border-gray-300 rounded-md px-3 py-2 text-sm" data-mock="true">
+                                    <option>Last 30 days</option>
+                                    <option>Last 7 days</option>
+                                    <option>Today</option>
+                                    <option>All time</option>
+                                </select>
+                                <button class="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700" data-event="click:clearAllHistory">
+                                    <i class="fas fa-trash mr-2"></i>Clear All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex h-full">
+                        <!-- Conversation List -->
+                        <div class="w-80 bg-white border border-gray-200 rounded-lg mr-6 overflow-hidden">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="font-medium text-gray-900">Conversations</h3>
+                            </div>
+                            <div class="overflow-y-auto h-full">
+                                <!-- @MAP: conversations.map(conversation => ( -->
+                                <div class="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer bg-blue-50 border-l-4 border-l-primary" data-event="click:selectConversation">
+                                    <div class="flex items-start justify-between">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" data-mock="true">Vector database benefits discussion</p>
+                                            <p class="text-xs text-gray-500 mt-1">12 messages • 2 hours ago</p>
+                                            <p class="text-xs text-gray-400 mt-1 truncate">Last: "What are the key benefits of using vector databases..."</p>
+                                        </div>
+                                        <button class="ml-2 text-gray-400 hover:text-red-600" data-event="click:deleteConversation">
+                                            <i class="fas fa-times text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" data-event="click:selectConversation">
+                                    <div class="flex items-start justify-between">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" data-mock="true">RAG implementation strategies</p>
+                                            <p class="text-xs text-gray-500 mt-1">8 messages • Yesterday</p>
+                                            <p class="text-xs text-gray-400 mt-1 truncate">Last: "Can you explain the chunking strategies for RAG?"</p>
+                                        </div>
+                                        <button class="ml-2 text-gray-400 hover:text-red-600" data-event="click:deleteConversation">
+                                            <i class="fas fa-times text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" data-event="click:selectConversation">
+                                    <div class="flex items-start justify-between">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" data-mock="true">OpenAI API configuration help</p>
+                                            <p class="text-xs text-gray-500 mt-1">15 messages • 2 days ago</p>
+                                            <p class="text-xs text-gray-400 mt-1 truncate">Last: "The API key seems to be working correctly now"</p>
+                                        </div>
+                                        <button class="ml-2 text-gray-400 hover:text-red-600" data-event="click:deleteConversation">
+                                            <i class="fas fa-times text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" data-event="click:selectConversation">
+                                    <div class="flex items-start justify-between">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" data-mock="true">Document processing pipeline</p>
+                                            <p class="text-xs text-gray-500 mt-1">22 messages • 3 days ago</p>
+                                            <p class="text-xs text-gray-400 mt-1 truncate">Last: "The document has been processed successfully"</p>
+                                        </div>
+                                        <button class="ml-2 text-gray-400 hover:text-red-600" data-event="click:deleteConversation">
+                                            <i class="fas fa-times text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" data-event="click:selectConversation">
+                                    <div class="flex items-start justify-between">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" data-mock="true">Embedding model comparison</p>
+                                            <p class="text-xs text-gray-500 mt-1">6 messages • 1 week ago</p>
+                                            <p class="text-xs text-gray-400 mt-1 truncate">Last: "text-embedding-ada-002 provides good balance"</p>
+                                        </div>
+                                        <button class="ml-2 text-gray-400 hover:text-red-600" data-event="click:deleteConversation">
+                                            <i class="fas fa-times text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- @END_MAP )) -->
+                            </div>
+                        </div>
+
+                        <!-- Conversation Details -->
+                        <div class="flex-1 bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <!-- Conversation Header -->
+                            <div class="p-4 border-b border-gray-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h3 class="font-medium text-gray-900" data-bind="selectedConversation.title">Vector database benefits discussion</h3>
+                                        <p class="text-xs text-gray-500">Started 2 hours ago • 12 messages</p>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded" title="Export conversation" data-event="click:exportConversation">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                        <button class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded" title="Continue conversation" data-event="click:continueConversation">
+                                            <i class="fas fa-play"></i>
+                                        </button>
+                                        <button class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete conversation" data-event="click:deleteConversation">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Conversation Messages -->
+                            <div class="h-full overflow-y-auto p-6 space-y-4">
+                                <!-- @MAP: conversationMessages.map(message => ( -->
+                                <!-- User Message -->
+                                <div class="flex justify-end">
+                                    <div class="max-w-3xl">
+                                        <div class="bg-primary text-white rounded-lg px-4 py-3">
+                                            <p class="text-sm" data-mock="true">What are the key benefits of using vector databases for RAG applications?</p>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1 text-right">2:34 PM</p>
+                                    </div>
+                                </div>
+
+                                <!-- Assistant Message -->
+                                <div class="flex justify-start">
+                                    <div class="max-w-4xl">
+                                        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                            <div class="prose prose-sm max-w-none">
+                                                <p class="text-gray-800 mb-3" data-mock="true">Vector databases offer several key benefits for RAG applications:</p>
+                                                <ol class="text-gray-800 space-y-2">
+                                                    <li><strong>Semantic Search:</strong> Vector databases enable semantic similarity search rather than just keyword matching, allowing for more contextually relevant document retrieval.</li>
+                                                    <li><strong>Scalability:</strong> They can efficiently handle millions of high-dimensional vectors with fast query performance.</li>
+                                                    <li><strong>Real-time Updates:</strong> Support for dynamic insertion and updates of vector embeddings without full reindexing.</li>
+                                                </ol>
+                                            </div>
+                                            
+                                            <!-- Citations -->
+                                            <div class="mt-4 pt-3 border-t border-gray-100">
+                                                <h4 class="text-xs font-medium text-gray-500 mb-2">Sources:</h4>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <span class="inline-flex items-center px-2 py-1 bg-gray-100 rounded text-xs text-gray-600" data-mock="true">
+                                                        <i class="fas fa-file-pdf mr-1"></i>
+                                                        Vector_DB_Guide.pdf
+                                                    </span>
+                                                    <span class="inline-flex items-center px-2 py-1 bg-gray-100 rounded text-xs text-gray-600" data-mock="true">
+                                                        <i class="fas fa-file-alt mr-1"></i>
+                                                        RAG_Best_Practices.md
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1">2:34 PM • Generated in 2.3s</p>
+                                    </div>
+                                </div>
+
+                                <!-- User Follow-up -->
+                                <div class="flex justify-end">
+                                    <div class="max-w-3xl">
+                                        <div class="bg-primary text-white rounded-lg px-4 py-3">
+                                            <p class="text-sm" data-mock="true">Can you explain more about the scalability aspects? How do they compare to traditional databases?</p>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1 text-right">2:36 PM</p>
+                                    </div>
+                                </div>
+
+                                <!-- Assistant Response -->
+                                <div class="flex justify-start">
+                                    <div class="max-w-4xl">
+                                        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                            <div class="prose prose-sm max-w-none">
+                                                <p class="text-gray-800 mb-3" data-mock="true">Vector databases excel in scalability compared to traditional databases for similarity search operations:</p>
+                                                <ul class="text-gray-800 space-y-2">
+                                                    <li><strong>Optimized for High-Dimensional Data:</strong> Traditional databases struggle with high-dimensional vectors (often 300-1536 dimensions), while vector databases use specialized indexing algorithms like HNSW, IVF, or LSH.</li>
+                                                    <li><strong>Approximate Nearest Neighbor (ANN) Search:</strong> Instead of exact matches, vector databases use ANN algorithms that trade minimal accuracy for massive performance gains.</li>
+                                                    <li><strong>Horizontal Scaling:</strong> Many vector databases support distributed architectures, allowing them to scale across multiple nodes seamlessly.</li>
+                                                </ul>
+                                            </div>
+                                            
+                                            <div class="mt-4 pt-3 border-t border-gray-100">
+                                                <h4 class="text-xs font-medium text-gray-500 mb-2">Sources:</h4>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <span class="inline-flex items-center px-2 py-1 bg-gray-100 rounded text-xs text-gray-600" data-mock="true">
+                                                        <i class="fas fa-file-alt mr-1"></i>
+                                                        Vector_Databases_Comparison.md
+                                                    </span>
+                                                    <span class="inline-flex items-center px-2 py-1 bg-gray-100 rounded text-xs text-gray-600" data-mock="true">
+                                                        <i class="fas fa-globe mr-1"></i>
+                                                        enterprise_ai_documentation.html
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1">2:36 PM • Generated in 1.8s</p>
+                                    </div>
+                                </div>
+                                <!-- @END_MAP )) -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: AppLayout -->
+    </div>
+
+    <script>
+        // TODO: Implement business logic, API calls, and state management
+        (function() {
+            // Tab switching functionality
+            const tabButtons = document.querySelectorAll('[data-tab]');
+            const tabContents = {
+                'chat': document.getElementById('chat-tab'),
+                'config': document.getElementById('config-tab'),
+                'documents': document.getElementById('documents-tab'),
+                'file-viewer': document.getElementById('file-viewer-tab'),
+                'history': document.getElementById('history-tab')
+            };
+            
+            function switchTab(activeTab) {
+                // Update navigation buttons
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('text-primary', 'bg-blue-50');
+                    btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-50');
+                });
+                
+                // Hide all tab contents
+                Object.values(tabContents).forEach(content => {
+                    if (content) content.classList.add('hidden');
+                });
+                
+                // Show active tab
+                const activeButton = document.querySelector(`[data-tab="${activeTab}"]`);
+                if (activeButton) {
+                    activeButton.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-50');
+                    activeButton.classList.add('text-primary', 'bg-blue-50');
+                }
+                
+                const activeContent = tabContents[activeTab];
+                if (activeContent) {
+                    activeContent.classList.remove('hidden');
+                }
+                
+                // Update page title
+                const titles = {
+                    'chat': 'Chat Interface',
+                    'config': 'Configuration',
+                    'documents': 'Document Manager',
+                    'file-viewer': 'File Viewer',
+                    'history': 'Chat History'
+                };
+                
+                const titleElement = document.getElementById('page-title');
+                if (titleElement && titles[activeTab]) {
+                    titleElement.textContent = titles[activeTab];
+                }
+            }
+            
+            // Add click handlers for tab buttons
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabName = button.getAttribute('data-tab');
+                    switchTab(tabName);
+                });
+            });
+            
+            // Configuration sub-tabs functionality
+            const configTabs = document.querySelectorAll('[data-config-tab]');
+            
+            configTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // Remove active state from all config tabs
+                    configTabs.forEach(t => {
+                        t.classList.remove('border-primary', 'text-primary');
+                        t.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700');
+                    });
+                    
+                    // Add active state to clicked tab
+                    tab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700');
+                    tab.classList.add('border-primary', 'text-primary');
+                });
+            });
+            
+            // View switching in file viewer
+            const viewButtons = document.querySelectorAll('[data-view]');
+            
+            viewButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Update button states
+                    viewButtons.forEach(btn => {
+                        btn.classList.remove('bg-primary', 'text-white');
+                        btn.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                    });
+                    
+                    button.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                    button.classList.add('bg-primary', 'text-white');
+                });
+            });
+            
+            // Initialize with chat tab active
+            switchTab('chat');
+        })();
+    </script>
+</body>
+</html>
